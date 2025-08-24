@@ -1,0 +1,33 @@
+{
+  "name": "nairobi_lulc",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "This project shows Land Use Land Cover (LULC) changes in **Nairobi County** between **2019 and 2025** using Sentinel-2 data.  \r The platform is web-based and displays satellite imagery and LULC classifications.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Fortunatus-ogwachi/nairobi_LULC.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Fortunatus-ogwachi/nairobi_LULC/issues"
+  },
+  "homepage": "https://github.com/Fortunatus-ogwachi/nairobi_LULC#readme",
+  "dependencies": {
+    "canvas": "^3.2.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "gdal-async": "^3.11.3",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
