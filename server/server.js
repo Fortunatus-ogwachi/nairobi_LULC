@@ -1,12 +1,23 @@
 import express from "express";
 import pkg from "pg";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const { Pool } = pkg;
 const app = express();
 const port = 5000;
 
 app.use(cors());
+
+// Serve static files from the 'client' directory
+app.use(express.static(path.join(__dirname, '..', 'client')));
+// Serve static files from the 'data' directory
+app.use('/data', express.static(path.join(__dirname, '..', 'data')));
+
 
 // Configure the database connection pool
 const pool = new Pool({
@@ -19,7 +30,7 @@ const pool = new Pool({
 
 // Root endpoint to confirm the server is running
 app.get("/", (req, res) => {
-  res.send("🌍 Nairobi LULC API is running!");
+  res.sendFile(path.join(__dirname, '..', 'client', 'index.html'));
 });
 
 // Endpoint to get LULC statistics for a specific year
@@ -48,5 +59,5 @@ app.get("/api/lulc/change", async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`✅ Server running on http://localhost:${port}`);
+  console.log(`Server running on http://localhost:${port}`);
 });

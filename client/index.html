@@ -6,6 +6,7 @@
   <title>Nairobi LULC Dashboard</title>
 
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet-boundary-canvas@1.0.0/dist/bundle.js"></script>
   
   <style>
     body, html {
@@ -34,13 +35,45 @@
       border-bottom: 2px solid #ccc;
       padding-bottom: 10px;
     }
+    /* Updated CSS to increase the chart height */
+    canvas {
+        height: 1000px;
+    }
+    #percentage-chart-container {
+      display: block !important;
+    }
+
+    /* Media query for larger screens (e.g., tablets and desktops) */
+    @media (min-width: 768px) {
+      #map-container {
+        flex-direction: row; /* Arrange horizontally on larger screens */
+      }
+      #map {
+        flex: 3; /* Map takes 3/4 width */
+        height: 100%; /* Restore full height */
+      }
+      #sidebar {
+        flex: 1; /* Sidebar takes 1/4 width */
+      }
+    }
   </style>
 </head>
 <body>
 
   <div id="map-container">
-    <div id="map"></div>
+    <div id="map">
+      <div id="pie-chart-container" style="position: absolute; bottom: 10px; right: 10px; background: white; padding: 10px; border: 2px solid #ccc; border-radius: 5px; z-index: 1000; width: 300px; height: 200px;">
+        <h4 id="pie-chart-title" style="margin: 0 0 10px 0; text-align: center;">LULC Distribution - 2019</h4>
+        <div style="display: flex;">
+          <div style="width: 60%;">
+            <canvas id="pieChart" style="width: 100%; height: calc(100% - 30px);"></canvas>
+          </div>
+          <div id="pie-chart-legend" style="width: 40%; font-size: 12px; padding-left: 10px; overflow-y: auto;"></div>
+        </div>
+      </div>
+    </div>
     <div id="sidebar">
+      <h1 style="text-align: center; color: #333; margin-top: 0; padding-top: 10px;">Nairobi Land Use Land Cover Analysis</h1>
       <div class="chart-container">
         <h2>LULC Class Statistics</h2>
         <canvas id="lulcChart"></canvas>
@@ -54,6 +87,7 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 
   <script>
     const map = L.map('map').setView([-1.286389, 36.817223], 11);
@@ -68,31 +102,276 @@
         layers: 'lulc_data:lulc_2019',
         format: 'image/png',
         transparent: true,
-        attribution: "LULC 2019 Data",
-        // The clipping parameter using the Nairobi boundary layer
-        clip: 'lulc_data:boundary'
+        attribution: "LULC 2019 Data"
     }).addTo(map);
 
     const lulc_2025 = L.tileLayer.wms("http://localhost:8080/geoserver/lulc_data/wms?", {
         layers: 'lulc_data:lulc_2025',
         format: 'image/png',
         transparent: true,
-        attribution: "LULC 2025 Data",
-        // The clipping parameter using the Nairobi boundary layer
-        clip: 'lulc_data:boundary'
+        attribution: "LULC 2025 Data"
     });
 
-    // Layer Control to switch between LULC layers
+    // Layer Control to switch between LULC layers (mutually exclusive)
+    // OpenStreetMap is the static base layer
     const baseMaps = {
-      "OpenStreetMap": osmLayer
-    };
-
-    const overlayMaps = {
       "LULC 2019": lulc_2019,
       "LULC 2025": lulc_2025
     };
 
-    L.control.layers(baseMaps, overlayMaps).addTo(map);
+    const layerControl = L.control.layers(baseMaps, {}).addTo(map);
+
+    // Add legend control to show LULC class colors
+    const legend = L.control({ position: "bottomleft" });
+
+    legend.onAdd = function(map) {
+      const div = L.DomUtil.create("div", "legend");
+      div.style.backgroundColor = "white";
+      div.style.padding = "10px";
+      div.style.border = "2px solid #ccc";
+      div.style.borderRadius = "5px";
+      
+      div.innerHTML = `
+        <h4>LULC Classes</h4>
+        <div id="custom-legend">
+          <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <div style="width: 20px; height: 20px; background-color: #ff0000; margin-right: 10px;"></div>
+            <span>Built-Up</span>
+          </div>
+          <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <div style="width: 20px; height: 20px; background-color: #00ff00; margin-right: 10px;"></div>
+            <span>Vegetation</span>
+          </div>
+          <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <div style="width: 20px; height: 20px; background-color: #228B22; margin-right: 10px;"></div>
+            <span>Forest</span>
+          </div>
+          <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <div style="width: 20px; height: 20px; background-color: #0198ff; margin-right: 10px;"></div>
+            <span>Water</span>
+          </div>
+          <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <div style="width: 20px; height: 20px; background-color: #8B4513; margin-right: 10px;"></div>
+            <span>Bare Land</span>
+          </div>
+        </div>
+      `;
+      
+      return div;
+    };
+
+    legend.addTo(map);
+
+    
+
+    // Fetch and display the Nairobi boundary as a mask
+    fetch('/data/lulc/nairobi_boundary.json')
+      .then(response => response.json())
+      .then(data => {
+        // Create a bounding box that covers the whole world
+        const outerBounds = [
+          [90, -180],
+          [90, 180],
+          [-90, 180],
+          [-90, -180],
+          [90, -180]
+        ];
+
+        // Get the coordinates of the Nairobi boundary
+        const nairobiCoords = data.features[0].geometry.coordinates;
+
+        // Create a new GeoJSON feature for the mask
+        const mask = {
+          type: 'Feature',
+          geometry: {
+            type: 'Polygon',
+            coordinates: [
+              outerBounds,
+              ...nairobiCoords
+            ]
+          }
+        };
+
+        // Add the mask layer to the map
+        L.geoJSON(mask, {
+          style: {
+            color: 'black',
+            fillColor: 'transparent',
+            fillOpacity: 0.5
+          }
+        }).addTo(map);
+      })
+      .catch(error => console.error('Error fetching Nairobi boundary:', error));
+
+    // Variables to store the pie chart instance
+    let pieChart = null;
+    let currentYear = "2019"; // Default year
+
+    // Function to update the pie chart
+    function updatePieChart(data, year) {
+      const canvas = document.getElementById('pieChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      // Calculate total area for percentage calculation
+      const totalArea = data.reduce((sum, item) => sum + parseFloat(item[`area_${year}`]), 0);
+      if (totalArea === 0) {
+        console.warn("Total area is zero, cannot generate pie chart.");
+        const legendContainer = document.getElementById('pie-chart-legend');
+        if (legendContainer) legendContainer.innerHTML = 'No data available.';
+        if (pieChart) pieChart.destroy();
+        pieChart = null;
+        return;
+      }
+
+      // Prepare data for the chart
+      const labels = data.map(item => item.class_name);
+      const percentages = data.map(item => {
+        const area = parseFloat(item[`area_${year}`]);
+        return ((area / totalArea) * 100).toFixed(2);
+      });
+
+      // Define a single, canonical color map.
+      const colorMap = {
+        'built-up': '#ff0000',
+        'vegetation': '#00ff00',
+        'forest': '#228B22',
+        'water': '#0198ff',
+        'bare land': '#8B4513'
+      };
+
+      const backgroundColors = labels.map(label => {
+        const lowerLabel = label.trim().toLowerCase();
+        // Find a matching key in our color map.
+        if (lowerLabel.includes('built') || lowerLabel.includes('urban')) {
+          return colorMap['built-up'];
+        }
+        if (lowerLabel.includes('vegetation')) return colorMap['vegetation'];
+        if (lowerLabel.includes('forest')) return colorMap['forest'];
+        if (lowerLabel.includes('water')) return colorMap['water'];
+        if (lowerLabel.includes('bare')) return colorMap['bare land'];
+
+        // Default color for unknown labels
+        return '#cccccc';
+      });
+
+      // Update the legend next to the pie chart
+      const legendContainer = document.getElementById('pie-chart-legend');
+      if (legendContainer) {
+        legendContainer.innerHTML = ''; // Clear previous legend
+        labels.forEach((label, index) => {
+          const color = backgroundColors[index];
+          const percentage = percentages[index];
+          
+          const legendItem = document.createElement('div');
+          legendItem.style.display = 'flex';
+          legendItem.style.alignItems = 'center';
+          legendItem.style.marginBottom = '5px';
+          
+          legendItem.innerHTML = `
+            <div style="width: 15px; height: 15px; background-color: ${color}; margin-right: 5px; border: 1px solid #ddd;"></div>
+            <span>${label}: ${percentage}%</span>
+          `;
+          
+          legendContainer.appendChild(legendItem);
+        });
+      }
+
+      // Destroy existing chart if it exists
+      if (pieChart) {
+        pieChart.destroy();
+      }
+
+      // Create new chart
+      pieChart = new Chart(ctx, {
+        type: 'pie',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: percentages,
+            backgroundColor: backgroundColors,
+            borderColor: 'rgba(255, 255, 255, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              display: false, // Remove the legend from the pie chart
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return `${context.label}: ${context.raw}%`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function displayChartError(canvasId, message) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'red';
+        ctx.font = '16px Arial';
+        ctx.fillText(message, 10, 30);
+
+        // Also clear the pie chart legend if it's for the pie chart
+        if (canvasId === 'pieChart') {
+            const legendContainer = document.getElementById('pie-chart-legend');
+            if (legendContainer) legendContainer.innerHTML = '';
+        }
+    }
+
+    // Event listeners for layer changes
+    map.on('baselayerchange', function(e) {
+      // Update current year based on selected layer
+      if (e.name === "LULC 2019") {
+        currentYear = "2019";
+      } else if (e.name === "LULC 2025") {
+        currentYear = "2025";
+      }
+      
+      // Update the pie chart title with the year
+      document.getElementById('pie-chart-title').textContent = `LULC Distribution - ${currentYear}`;
+      
+      // Update the pie chart
+      fetch(`http://localhost:5000/api/lulc/statistics/${currentYear}`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json();
+        })
+        .then(data => {
+          updatePieChart(data, currentYear);
+        })
+        .catch(error => {
+          console.error('Error fetching LULC statistics:', error);
+          displayChartError('pieChart', 'Error loading data');
+        });
+    });
+
+    // Initialize the pie chart with default data (2019)
+    fetch('http://localhost:5000/api/lulc/statistics/2019')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
+      .then(data => {
+        updatePieChart(data, "2019");
+      })
+      .catch(error => {
+        console.error('Error fetching initial LULC statistics:', error);
+        displayChartError('pieChart', 'Error loading data');
+      });
 
     // Fetch and display LULC statistics for 2019 and 2025 (Dashboard)
     Promise.all([
@@ -110,12 +389,12 @@
           labels: labels,
           datasets: [
             {
-              label: 'Area (sq km) - 2019',
+              label: '2019',
               data: area_2019,
               backgroundColor: 'rgba(54, 162, 235, 0.6)',
             },
             {
-              label: 'Area (sq km) - 2025',
+              label: '2025',
               data: area_2025,
               backgroundColor: 'rgba(255, 99, 132, 0.6)',
             }
@@ -124,7 +403,30 @@
         options: {
           scales: {
             y: {
-              beginAtZero: true
+              beginAtZero: true,
+              ticks: {
+                // Set the tick interval to 5
+                stepSize: 5,
+                callback: function(value, index, ticks) {
+                  return value + ' km²';
+                }
+              }
+            }
+          },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                label: function(tooltipItem) {
+                  return tooltipItem.dataset.label + ': ' + tooltipItem.formattedValue + ' km²';
+                }
+              }
+            },
+            datalabels: { // Add datalabels plugin configuration
+              anchor: 'end',
+              align: 'top',
+              formatter: function(value, context) {
+                return value + ' km²';
+              }
             }
           }
         }
@@ -144,7 +446,7 @@
           data: {
             labels: labels,
             datasets: [{
-              label: 'Change in Area (sq km)',
+              label: 'Change',
               data: change_pct,
               backgroundColor: 'rgba(255, 99, 132, 0.6)',
             }]
@@ -152,13 +454,26 @@
           options: {
             scales: {
               y: {
-                beginAtZero: true
+                beginAtZero: true,
+                ticks: {
+                  callback: function(value, index, ticks) {
+                    return value + ' km²';
+                  }
+                }
+              }
+            },
+            datalabels: { // Add datalabels plugin configuration
+              anchor: 'end',
+              align: 'top',
+              formatter: function(value, context) {
+                return value + ' km²';
               }
             }
           }
         });
       })
       .catch(error => console.error('Error fetching change statistics:', error));
+
   </script>
 
 </body>
