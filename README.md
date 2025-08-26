@@ -30,20 +30,24 @@ To set up and run this project locally, follow these steps:
     ```
     This will install all necessary packages for the server.
 
+3.  **GeoServer Setup (Prerequisite):**
+    Ensure you have GeoServer installed and running. Publish the `lulc_2019.tif` and `lulc_2025.tif` files from the `data/processed/` directory as WMS layers in GeoServer (e.g., under a workspace named `nairobi_lulc` with layer names `lulc_2019` and `lulc_2025`). The server will provide the GeoServer configuration to the client.
+
 ## Usage
 
 1.  **Start the application:**
     ```bash
     npm start
     ```
-    This command will start the backend server, which also serves the frontend application.
+    This command will start the backend server, which also serves the frontend application and provides GeoServer configuration.
 
-2.  Open your web browser and navigate to `http://localhost:3000` (or the port specified by the server).
+2.  Open your web browser and navigate to `http://localhost:3000` (or the port specified by the server). The LULC layers will be rendered from GeoServer.
 
 ## Technologies Used
-- **Frontend:** HTML, CSS, JavaScript, Leaflet (implied by "Interactive web map")
+- **Frontend:** HTML, CSS, JavaScript, Leaflet
 - **Backend:** Node.js, Express.js, GDAL (via `gdal-async`), PostgreSQL (via `pg`)
 - **Geospatial Data:** GeoTIFF, Shapefiles, Sentinel-2
+- **Mapping Server:** GeoServer
 
 ## License
 This project is licensed under the [LICENSE](LICENSE) file.
