@@ -121,6 +121,8 @@
 
     const layerControl = L.control.layers(baseMaps, {}).addTo(map);
 
+    L.control.scale().addTo(map);
+
     // Add legend control to show LULC class colors
     const legend = L.control({ position: "bottomleft" });
 
