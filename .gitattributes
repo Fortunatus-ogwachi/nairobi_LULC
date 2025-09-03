@@ -1,4 +1,4 @@
 data/raw/*.tif filter=lfs diff=lfs merge=lfs -text
 data/raw/*.enp filter=lfs diff=lfs merge=lfs -text
-*.tif filter=lfs diff=lfs merge=lfs -text
 *.enp filter=lfs diff=lfs merge=lfs -text
+*.tif filter=lfs diff=lfs merge=lfs -text
